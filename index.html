@@ -1,0 +1,1698 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>90-Day Path — Weekly Training Tracker</title>
+
+<!-- ── PWA Meta ───────────────────────────────────────────────────────────── -->
+<meta name="application-name" content="Weekly Path">
+<meta name="description" content="Weekly training planner for the 90-Day Bruce Lee Protocol">
+<meta name="theme-color" content="#000000">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Weekly Path">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="manifest" href="manifest.json">
+
+<!-- ── Fonts + html2pdf ───────────────────────────────────────────────────── -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js" defer></script>
+
+<style>
+  /* ══════════════════════════════════════════════════════════
+     DESIGN TOKENS — Pure Black & White System
+  ══════════════════════════════════════════════════════════ */
+  :root {
+    --black:   #000000;
+    --ink:     #111111;
+    --ink2:    #333333;
+    --mid:     #666666;
+    --muted:   #999999;
+    --faint:   #cccccc;
+    --ghost:   #e8e8e8;
+    --surface: #f5f5f5;
+    --white:   #ffffff;
+    --accent:  #c0392b;          /* used ONLY for current-week marker */
+
+    --f-body: 'Cormorant Garamond', Georgia, serif;
+    --f-mono: 'DM Mono', 'Courier New', monospace;
+
+    --rule-heavy: 1.5px solid var(--ink);
+    --rule-mid:   1px   solid var(--faint);
+    --rule-light: 1px   solid #ebebeb;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    font-family: var(--f-body);
+    background: var(--surface);
+    color: var(--ink);
+    font-size: 9pt;
+    -webkit-font-smoothing: antialiased;
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  /* ── PRINT ── */
+  @media print {
+    body { background: white; padding-bottom: 0; }
+    .no-print { display: none !important; }
+    .page {
+      page-break-after: always; margin: 0; padding: 18mm 16mm;
+      box-shadow: none; border: none; background: white; display: block !important;
+    }
+    .page:last-child { page-break-after: avoid; }
+    @page { size: A4 portrait; margin: 0; }
+    .field-inline, .field-log, .note-line input, .score-field input,
+    .chain-score-row input, .week-total-input {
+      border-color: var(--faint) !important;
+      background: transparent !important;
+    }
+  }
+
+  /* ══════════════════════════════════════════════════════════
+     TOP CONTROLS BAR
+  ══════════════════════════════════════════════════════════ */
+  .controls {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 200;
+    display: flex; gap: 6px; align-items: center;
+    padding: 10px 20px;
+    padding-top: max(10px, env(safe-area-inset-top));
+    min-height: 52px;
+    background: var(--black);
+    border-bottom: none;
+  }
+
+  .controls-title {
+    font-family: var(--f-mono);
+    font-size: 10px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--faint);
+    flex: 1;
+  }
+
+  .controls-title strong {
+    color: var(--white);
+    font-weight: 500;
+  }
+
+  /* Control buttons */
+  .controls button {
+    font-family: var(--f-mono);
+    font-size: 9px;
+    letter-spacing: 0.1em;
+    padding: 7px 16px;
+    border: 1px solid rgba(255,255,255,0.2);
+    background: transparent;
+    color: rgba(255,255,255,0.65);
+    cursor: pointer;
+    text-transform: uppercase;
+    transition: all 0.12s ease;
+    white-space: nowrap;
+    height: 32px;
+    display: flex; align-items: center;
+  }
+
+  .controls button:hover {
+    border-color: var(--white);
+    color: var(--white);
+    background: rgba(255,255,255,0.08);
+  }
+
+  .controls button.primary {
+    background: var(--white);
+    color: var(--black);
+    border-color: var(--white);
+    font-weight: 500;
+  }
+
+  .controls button.primary:hover {
+    background: var(--ghost);
+  }
+
+  .controls button:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+  }
+
+  #btn-thisweek {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+  #btn-thisweek:hover {
+    background: var(--accent);
+    color: var(--white);
+    border-color: var(--accent);
+  }
+
+  /* ── DIVIDER in controls ── */
+  .ctrl-sep {
+    width: 1px;
+    height: 20px;
+    background: rgba(255,255,255,0.12);
+    flex-shrink: 0;
+  }
+
+  /* ══════════════════════════════════════════════════════════
+     WEEK NAV BAR
+  ══════════════════════════════════════════════════════════ */
+  .week-select {
+    position: fixed; z-index: 190;
+    left: 0; right: 0;
+    display: flex; gap: 3px; flex-wrap: nowrap; overflow-x: auto;
+    padding: 8px 16px;
+    background: var(--white);
+    border-bottom: var(--rule-heavy);
+    scrollbar-width: none;
+  }
+  .week-select::-webkit-scrollbar { display: none; }
+
+  .week-select button {
+    font-family: var(--f-mono);
+    font-size: 8.5px;
+    letter-spacing: 0.08em;
+    padding: 5px 11px;
+    border: 1px solid var(--ghost);
+    background: var(--surface);
+    color: var(--muted);
+    cursor: pointer;
+    text-transform: uppercase;
+    transition: all 0.12s;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  .week-select button:hover {
+    border-color: var(--ink2);
+    color: var(--ink);
+    background: var(--white);
+  }
+
+  .week-select button.active {
+    border-color: var(--black);
+    background: var(--black);
+    color: var(--white);
+  }
+
+  .week-select button.current-week {
+    border-color: var(--accent);
+    color: var(--accent);
+    background: var(--white);
+  }
+
+  .week-select button.current-week.active {
+    background: var(--accent);
+    color: var(--white);
+    border-color: var(--accent);
+  }
+
+  /* ══════════════════════════════════════════════════════════
+     OFFLINE BADGE
+  ══════════════════════════════════════════════════════════ */
+  #offline-badge {
+    display: none;
+    position: fixed; top: 90px; right: 14px; z-index: 210;
+    background: var(--accent); color: var(--white);
+    font-family: var(--f-mono); font-size: 8px; letter-spacing: 0.1em;
+    padding: 4px 10px; text-transform: uppercase;
+    border: none;
+  }
+  #offline-badge.visible { display: block; }
+
+  /* ══════════════════════════════════════════════════════════
+     INSTALL BANNER
+  ══════════════════════════════════════════════════════════ */
+  #install-banner {
+    display: none;
+    position: fixed; bottom: 0; left: 0; right: 0; z-index: 300;
+    background: var(--ink);
+    color: var(--white);
+    padding: 14px 20px;
+    padding-bottom: max(14px, env(safe-area-inset-bottom));
+    font-family: var(--f-mono); font-size: 11px; letter-spacing: 0.06em;
+    flex-direction: row; align-items: center; gap: 14px;
+    border-top: 2px solid var(--black);
+  }
+  #install-banner.visible { display: flex; }
+  #install-banner span { flex: 1; color: rgba(255,255,255,0.7); }
+  #install-banner button {
+    font-family: var(--f-mono); font-size: 9px; letter-spacing: 0.1em;
+    padding: 8px 16px;
+    border: 1px solid rgba(255,255,255,0.3);
+    background: transparent; color: rgba(255,255,255,0.7);
+    cursor: pointer; text-transform: uppercase;
+    transition: all 0.12s;
+  }
+  #install-banner button:hover {
+    border-color: var(--white); color: var(--white);
+  }
+  #install-banner button.install-btn {
+    background: var(--white);
+    border-color: var(--white);
+    color: var(--black);
+    font-weight: 500;
+  }
+  #install-banner button.install-btn:hover {
+    background: var(--ghost);
+  }
+
+  /* ══════════════════════════════════════════════════════════
+     PAGES WRAPPER
+  ══════════════════════════════════════════════════════════ */
+  .pages-wrapper {
+    margin-top: 96px;
+  }
+
+  /* ══════════════════════════════════════════════════════════
+     PAGE — A4 DOCUMENT
+  ══════════════════════════════════════════════════════════ */
+  .page {
+    width: 210mm;
+    min-height: 297mm;
+    margin: 20px auto;
+    padding: 16mm 16mm 22mm;
+    background: var(--white);
+    box-shadow:
+      0 1px 3px rgba(0,0,0,0.05),
+      0 4px 24px rgba(0,0,0,0.07);
+    position: relative;
+    display: none;
+    border-top: 3px solid var(--black);
+  }
+  .page.active { display: block; }
+
+  /* ══════════════════════════════════════════════════════════
+     PAGE HEADER
+  ══════════════════════════════════════════════════════════ */
+  .page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 8mm;
+    padding-bottom: 5mm;
+    border-bottom: var(--rule-heavy);
+  }
+
+  .header-left .protocol {
+    font-family: var(--f-mono);
+    font-size: 6.5pt;
+    letter-spacing: 0.2em;
+    color: var(--muted);
+    text-transform: uppercase;
+    margin-bottom: 4px;
+  }
+
+  .header-left .week-title {
+    font-size: 28pt;
+    font-weight: 300;
+    letter-spacing: -0.02em;
+    line-height: 1;
+    color: var(--black);
+  }
+
+  .header-left .phase-label {
+    font-family: var(--f-mono);
+    font-size: 7pt;
+    letter-spacing: 0.12em;
+    color: var(--mid);
+    text-transform: uppercase;
+    margin-top: 5px;
+    border-left: 2px solid var(--black);
+    padding-left: 6px;
+  }
+
+  .header-right {
+    text-align: right;
+    font-family: var(--f-mono);
+    font-size: 7pt;
+    color: var(--muted);
+    letter-spacing: 0.06em;
+    line-height: 2;
+  }
+
+  .header-right .date-field {
+    border-bottom: 1px solid var(--faint);
+    display: inline-block;
+    min-width: 28mm;
+    margin-left: 4px;
+  }
+
+  /* ══════════════════════════════════════════════════════════
+     QUOTE
+  ══════════════════════════════════════════════════════════ */
+  .quote {
+    font-style: italic;
+    font-size: 8.5pt;
+    color: var(--mid);
+    text-align: center;
+    margin-bottom: 7mm;
+    letter-spacing: 0.02em;
+    display: flex;
+    align-items: center;
+    gap: 6mm;
+    padding: 0 4mm;
+  }
+  .quote::before,
+  .quote::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--faint);
+    flex-shrink: 0;
+    min-width: 8mm;
+  }
+
+  /* ══════════════════════════════════════════════════════════
+     SECTION HEADERS
+  ══════════════════════════════════════════════════════════ */
+  .section-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 6mm 0 3mm;
+  }
+
+  .section-header .label {
+    font-family: var(--f-mono);
+    font-size: 6.5pt;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--black);
+    font-weight: 500;
+    white-space: nowrap;
+  }
+
+  .section-header .time {
+    font-family: var(--f-mono);
+    font-size: 6.5pt;
+    color: var(--muted);
+    letter-spacing: 0.06em;
+  }
+
+  .section-header::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--faint);
+  }
+
+  /* Section header left accent bar */
+  .section-header::before {
+    content: '';
+    width: 3px;
+    height: 10px;
+    background: var(--black);
+    flex-shrink: 0;
+  }
+
+  /* ══════════════════════════════════════════════════════════
+     TABLES
+  ══════════════════════════════════════════════════════════ */
+  .full-table-wrap { margin-bottom: 5mm; }
+
+  .full-table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+
+  .full-table thead th {
+    font-family: var(--f-mono);
+    font-size: 5.5pt;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--white);
+    background: var(--black);
+    padding: 2.5mm 3mm;
+    text-align: left;
+    font-weight: 400;
+  }
+
+  .full-table tbody tr {
+    border-bottom: var(--rule-light);
+  }
+
+  .full-table tbody tr:nth-child(even) {
+    background: var(--surface);
+  }
+
+  .full-table tbody tr:hover {
+    background: #f0f0f0;
+  }
+
+  .full-table tbody td {
+    font-size: 7.5pt;
+    padding: 2mm 3mm;
+    vertical-align: top;
+  }
+
+  .full-table tbody td.num {
+    font-family: var(--f-mono);
+    font-size: 6.5pt;
+    text-align: center;
+    color: var(--ink2);
+    white-space: nowrap;
+  }
+
+  .full-table tbody td.log-entry {
+    border-left: 1px solid var(--ghost);
+    min-width: 25mm;
+  }
+
+  /* ══════════════════════════════════════════════════════════
+     NUTRITION STRIP
+  ══════════════════════════════════════════════════════════ */
+  .nutrition-strip {
+    border: 1px solid var(--ghost);
+    border-top: 2px solid var(--black);
+    padding: 3.5mm 4mm;
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 2mm;
+    margin-bottom: 5mm;
+    background: var(--surface);
+  }
+
+  .nut-cell { text-align: center; }
+
+  .nut-cell .nut-label {
+    font-family: var(--f-mono);
+    font-size: 5pt;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--muted);
+    display: block;
+    margin-bottom: 1.5mm;
+    border-bottom: 1px solid var(--ghost);
+    padding-bottom: 1mm;
+  }
+
+  .nut-cell .nut-val {
+    font-size: 9pt;
+    font-weight: 600;
+    color: var(--black);
+    display: block;
+    margin-bottom: 1mm;
+  }
+
+  .nut-cell .nut-food {
+    font-size: 6pt;
+    color: var(--mid);
+    font-style: italic;
+    display: block;
+    line-height: 1.4;
+  }
+
+  /* ══════════════════════════════════════════════════════════
+     WEEKLY NOTES
+  ══════════════════════════════════════════════════════════ */
+  .notes-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 3mm;
+    margin-bottom: 5mm;
+  }
+
+  .note-box {
+    border: 1px solid var(--ghost);
+    border-top: 2px solid var(--ink2);
+    padding: 3mm;
+  }
+
+  .note-box .note-label {
+    font-family: var(--f-mono);
+    font-size: 5.5pt;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--mid);
+    margin-bottom: 2.5mm;
+    display: block;
+  }
+
+  .note-lines {
+    display: flex;
+    flex-direction: column;
+    gap: 3.5mm;
+  }
+
+  .note-line {
+    border-bottom: 1px solid var(--ghost);
+    height: 4mm;
+    position: relative;
+  }
+
+  .note-line input {
+    position: absolute; inset: 0; width: 100%; border: none;
+    background: transparent;
+    font-family: var(--f-body);
+    font-size: 7.5pt;
+    color: var(--ink);
+    outline: none;
+    padding: 0 2px;
+  }
+
+  .note-line input:focus {
+    background: rgba(0,0,0,0.02);
+  }
+
+  /* ══════════════════════════════════════════════════════════
+     SCORE ROW
+  ══════════════════════════════════════════════════════════ */
+  .score-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-top: var(--rule-heavy);
+    padding-top: 3mm;
+    margin-top: 3mm;
+  }
+
+  .score-boxes {
+    display: flex;
+    gap: 4mm;
+  }
+
+  .score-box {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1.5mm;
+  }
+
+  .score-box .score-label {
+    font-family: var(--f-mono);
+    font-size: 5.5pt;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  .score-box .score-field {
+    width: 10mm;
+    height: 7mm;
+    border: 1.5px solid var(--ink2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--white);
+  }
+
+  .score-field input {
+    width: 100%; height: 100%; border: none; background: transparent;
+    font-family: var(--f-mono); font-size: 8pt; color: var(--black);
+    text-align: center; outline: none;
+  }
+
+  .score-field input:focus {
+    background: var(--surface);
+  }
+
+  .week-score-total {
+    font-family: var(--f-mono);
+    font-size: 11pt;
+    font-weight: 500;
+    color: var(--black);
+  }
+
+  .week-score-total span {
+    font-size: 7pt;
+    color: var(--muted);
+    letter-spacing: 0.1em;
+    font-weight: 300;
+  }
+
+  /* ══════════════════════════════════════════════════════════
+     FILLABLE FIELDS
+  ══════════════════════════════════════════════════════════ */
+  .field-inline {
+    border: none;
+    border-bottom: 1px solid var(--faint);
+    background: transparent;
+    font-family: var(--f-mono);
+    font-size: 7pt;
+    color: var(--ink);
+    letter-spacing: 0.06em;
+    outline: none;
+    min-width: 28mm;
+    padding: 1px 2px;
+    transition: border-color 0.12s;
+  }
+
+  .field-inline:focus {
+    border-bottom-color: var(--black);
+    background: rgba(0,0,0,0.02);
+  }
+
+  .field-log {
+    width: 100%; border: none; background: transparent;
+    font-family: var(--f-mono); font-size: 6pt; color: var(--ink2);
+    outline: none; padding: 1px 2px; resize: none;
+    line-height: 1.4; min-height: 14px;
+  }
+
+  .field-log:focus {
+    background: rgba(0,0,0,0.02);
+  }
+
+  .week-total-input {
+    border: none;
+    border-bottom: 1.5px solid var(--black);
+    background: transparent;
+    font-family: var(--f-mono);
+    font-size: 11pt;
+    font-weight: 500;
+    color: var(--black);
+    outline: none;
+    width: 16mm;
+    text-align: center;
+  }
+
+  /* ══════════════════════════════════════════════════════════
+     PAGE FOOTER
+  ══════════════════════════════════════════════════════════ */
+  .page-footer {
+    position: absolute;
+    bottom: 10mm;
+    left: 16mm;
+    right: 16mm;
+    display: flex;
+    justify-content: space-between;
+    font-family: var(--f-mono);
+    font-size: 5.5pt;
+    color: var(--muted);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    border-top: 1px solid var(--ghost);
+    padding-top: 2mm;
+  }
+
+  /* ══════════════════════════════════════════════════════════
+     PHASE OVERVIEW (page 0)
+  ══════════════════════════════════════════════════════════ */
+  .phase-grid {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 3mm;
+    margin-bottom: 6mm;
+  }
+
+  .phase-card {
+    border: 1px solid var(--ghost);
+    border-top: 3px solid var(--black);
+    padding: 3.5mm;
+    text-align: center;
+    background: var(--white);
+    transition: box-shadow 0.12s;
+  }
+
+  .phase-card:hover {
+    box-shadow: 0 2px 12px rgba(0,0,0,0.09);
+  }
+
+  .phase-card .pc-num {
+    font-family: var(--f-mono);
+    font-size: 6pt;
+    color: var(--muted);
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    margin-bottom: 1.5mm;
+  }
+
+  .phase-card .pc-name {
+    font-size: 9pt;
+    font-weight: 600;
+    color: var(--black);
+    margin-bottom: 2mm;
+    letter-spacing: 0.01em;
+  }
+
+  .phase-card .pc-weeks {
+    font-family: var(--f-mono);
+    font-size: 5.5pt;
+    color: var(--mid);
+    margin-bottom: 1.5mm;
+    letter-spacing: 0.06em;
+  }
+
+  .phase-card .pc-rm {
+    font-family: var(--f-mono);
+    font-size: 6pt;
+    color: var(--ink2);
+    letter-spacing: 0.04em;
+  }
+
+  /* Goals table */
+  .goals-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 6mm;
+  }
+
+  .goals-table tr {
+    border-bottom: var(--rule-light);
+  }
+
+  .goals-table tr:first-child {
+    border-top: 1px solid var(--ghost);
+  }
+
+  .goals-table td {
+    padding: 3mm 4mm;
+    font-size: 8pt;
+  }
+
+  .goals-table td:first-child {
+    font-family: var(--f-mono);
+    font-size: 6pt;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--black);
+    font-weight: 500;
+    width: 32mm;
+    border-right: 1px solid var(--ghost);
+    background: var(--surface);
+  }
+
+  /* ══════════════════════════════════════════════════════════
+     STRIKING CHAIN BOX
+  ══════════════════════════════════════════════════════════ */
+  .chain-box {
+    border: 1px solid var(--ghost);
+    border-left: 3px solid var(--black);
+    padding: 3mm 4mm;
+    margin-bottom: 4mm;
+    font-size: 8pt;
+    color: var(--ink2);
+    background: var(--surface);
+  }
+
+  .chain-score-row {
+    margin-top: 2mm;
+    font-family: var(--f-mono);
+    font-size: 6pt;
+    color: var(--muted);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+
+  .chain-score-row input {
+    border: none;
+    border-bottom: 1px solid var(--faint);
+    background: transparent;
+    font-family: var(--f-mono);
+    font-size: 6pt;
+    color: var(--ink);
+    outline: none;
+    text-align: center;
+    transition: border-color 0.12s;
+  }
+
+  .chain-score-row input:focus {
+    border-bottom-color: var(--black);
+    background: rgba(0,0,0,0.02);
+  }
+
+  .chain-score-row input {
+    border: none;
+    border-bottom: 1px solid var(--faint);
+    background: transparent;
+    font-family: var(--f-mono);
+    font-size: 6pt;
+    color: var(--ink);
+    outline: none;
+    text-align: center;
+    padding: 0 2px;
+  }
+
+  .chain-score-row input:focus {
+    border-bottom-color: var(--black);
+    background: rgba(0,0,0,0.02);
+  }
+
+  .chain-score-row .sep {
+    color: var(--faint);
+    margin: 0 2px;
+  }
+
+  /* ══════════════════════════════════════════════════════════
+     RESPONSIVE
+  ══════════════════════════════════════════════════════════ */
+  @media (max-width: 875px) {
+    .page {
+      width: 100%;
+      padding: 10mm 5mm 22mm;
+      margin: 10px 0;
+    }
+    .nutrition-strip { grid-template-columns: repeat(3, 1fr); }
+    .notes-grid { grid-template-columns: 1fr 1fr; }
+    .phase-grid { grid-template-columns: repeat(3, 1fr); }
+    .controls { padding: 0 12px; }
+    .controls-title { font-size: 8px; }
+    .controls button { padding: 6px 10px; font-size: 8px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ── CONTROLS BAR ──────────────────────────────────────────────────────────── -->
+<div class="controls no-print" id="controlsBar">
+  <span class="controls-title"><strong>90-Day Path</strong> · Bruce Lee Protocol</span>
+  <button id="btn-thisweek" onclick="goToThisWeek()">▶ This Week</button>
+  <div class="ctrl-sep"></div>
+  <button onclick="printCurrent()" id="btnCurrent">↓ Page PDF</button>
+  <button onclick="printAll()" class="primary" id="btnAll">↓ Full PDF</button>
+</div>
+
+<!-- ── WEEK NAV BAR ──────────────────────────────────────────────────────────── -->
+<div class="week-select no-print" id="weekNav"></div>
+
+<!-- ── OFFLINE BADGE ─────────────────────────────────────────────────────────── -->
+<div id="offline-badge">● Offline</div>
+
+<!-- ── INSTALL BANNER ────────────────────────────────────────────────────────── -->
+<div id="install-banner">
+  <span>Add 90-Day Path to your home screen for offline access.</span>
+  <button onclick="dismissInstall()">Later</button>
+  <button class="install-btn" onclick="triggerInstall()">Install</button>
+</div>
+
+<!-- ── PAGES WRAPPER ─────────────────────────────────────────────────────────── -->
+<div class="pages-wrapper" id="pagesWrapper">
+
+<!-- ════════════════════════════════════════════════
+     PAGE 0 — OVERVIEW
+════════════════════════════════════════════════ -->
+<div class="page active" id="page-0">
+  <div class="page-header">
+    <div class="header-left">
+      <div class="protocol">Bruce Lee Protocol · 90-Day Path</div>
+      <div class="week-title">Overview</div>
+      <div class="phase-label">BMI 23 · Pescatarian · Maharashtra</div>
+    </div>
+    <div class="header-right">
+      Name <input class="field-inline" type="text" placeholder="Your name" style="min-width:32mm"><br>
+      Start Date <input class="field-inline" type="text" placeholder="DD MMM YYYY" style="min-width:28mm"><br>
+      Day 90 <input class="field-inline" type="text" placeholder="DD MMM YYYY" style="min-width:28mm">
+    </div>
+  </div>
+
+  <div class="quote">"Be formless, shapeless — like water." — Bruce Lee</div>
+
+  <div class="section-header"><span class="label">Three Goals</span></div>
+  <table class="goals-table">
+    <tbody>
+    <tr><td>01 — Strength</td><td>Double relative strength — lift twice your bodyweight</td></tr>
+    <tr><td>02 — Combat</td><td>Master 3 striking chains — punch, kick, trap in perfect sequence</td></tr>
+    <tr><td>03 — Performance</td><td>Execute 1 flawless 3-minute sequence from memory</td></tr>
+    </tbody>
+  </table>
+
+  <div class="section-header"><span class="label">5 Phases</span></div>
+  <div class="phase-grid">
+    <div class="phase-card">
+      <div class="pc-num">Phase 1</div>
+      <div class="pc-name">Base</div>
+      <div class="pc-weeks">Weeks 1–3</div>
+      <div class="pc-rm">60–65% 1RM</div>
+      <div class="pc-rm">4 × 15</div>
+    </div>
+    <div class="phase-card">
+      <div class="pc-num">Phase 2</div>
+      <div class="pc-name">Build</div>
+      <div class="pc-weeks">Weeks 4–6</div>
+      <div class="pc-rm">70–75% 1RM</div>
+      <div class="pc-rm">4 × 10–12</div>
+    </div>
+    <div class="phase-card">
+      <div class="pc-num">Phase 3</div>
+      <div class="pc-name">Load</div>
+      <div class="pc-weeks">Weeks 7–9</div>
+      <div class="pc-rm">80–85% 1RM</div>
+      <div class="pc-rm">4 × 5–6</div>
+    </div>
+    <div class="phase-card">
+      <div class="pc-num">Phase 4</div>
+      <div class="pc-name">Peak</div>
+      <div class="pc-weeks">Weeks 10–11</div>
+      <div class="pc-rm">87–92% 1RM</div>
+      <div class="pc-rm">3–4 × 3–5</div>
+    </div>
+    <div class="phase-card">
+      <div class="pc-num">Phase 5</div>
+      <div class="pc-name">Express</div>
+      <div class="pc-weeks">Week 12</div>
+      <div class="pc-rm">55–60% 1RM</div>
+      <div class="pc-rm">3 × 8</div>
+    </div>
+  </div>
+
+  <div class="section-header"><span class="label">Daily Schedule</span></div>
+  <table class="full-table" style="margin-bottom:6mm">
+    <thead>
+      <tr>
+        <th>Day</th><th>Type</th><th>07:00–09:00</th><th>15:00–17:00</th><th>19:00–21:00</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr><td>Mon · Wed · Fri</td><td class="num">Power + Strike</td><td>Bag Work — 3 × 3 min rounds</td><td>Gym: Compound lifts + Sprints 3×60m</td><td>Sequence Rehearsal + Static Stretch</td></tr>
+      <tr><td>Tue · Thu · Sat</td><td class="num">Fluidity + Flow</td><td>Shadow / Pad Flow drills</td><td>Mobility + Core 3×20</td><td>Sequence Rehearsal + Stretch</td></tr>
+      <tr><td>Sunday</td><td class="num">Reset</td><td>Yoga</td><td>Rest</td><td>Journal + Light Stretch</td></tr>
+    </tbody>
+  </table>
+
+  <div class="section-header"><span class="label">Striking Chain Ladder</span></div>
+  <table class="full-table" style="margin-bottom:6mm">
+    <thead>
+      <tr><th>Chain</th><th>Components</th><th>Introduced</th><th>Mastered By</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>1 — Punch</td><td>Jab → Cross → Hook → Slip</td><td class="num">Week 1</td><td class="num">Week 4</td></tr>
+      <tr><td>2 — Kick</td><td>Lead kick → Rear kick → Switch kick</td><td class="num">Week 4</td><td class="num">Week 7</td></tr>
+      <tr><td>3 — Trap</td><td>Pak Sao → Lap Sao → Strike → Entry</td><td class="num">Week 7</td><td class="num">Week 10</td></tr>
+      <tr><td>Full Sequence</td><td>All 3 chains — 3-minute flow</td><td class="num">Week 10</td><td class="num">Week 12</td></tr>
+    </tbody>
+  </table>
+
+  <div class="section-header"><span class="label">Nutrition Pillars</span></div>
+  <div class="nutrition-strip">
+    <div class="nut-cell"><span class="nut-label">Carbs</span><span class="nut-val">4–5g/kg</span><span class="nut-food">Jowar · Rice · Bajra</span></div>
+    <div class="nut-cell"><span class="nut-label">Protein</span><span class="nut-val">2.2g/kg</span><span class="nut-food">Fish · Prawns · Dal</span></div>
+    <div class="nut-cell"><span class="nut-label">Fat</span><span class="nut-val">1.1g/kg</span><span class="nut-food">Ghee · Nuts · Coconut</span></div>
+    <div class="nut-cell"><span class="nut-label">Training</span><span class="nut-val">~2,900</span><span class="nut-food">kcal / day</span></div>
+    <div class="nut-cell"><span class="nut-label">Rest</span><span class="nut-val">~2,400</span><span class="nut-food">kcal / day</span></div>
+  </div>
+
+  <div class="page-footer">
+    <span>90-Day Path · Bruce Lee Protocol</span>
+    <span>Overview</span>
+    <span>Page 1 of 13</span>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════
+     WEEKS 1–12 GENERATED BY JS
+════════════════════════════════════════════ -->
+<div id="weekPages"></div>
+
+</div><!-- /pages-wrapper -->
+
+<script>
+// ════════════════════════════════════════════════════════════════════════════
+//  WEEK DATA
+// ════════════════════════════════════════════════════════════════════════════
+const WEEKS = [
+  {
+    num: 1, phase: "Phase 1 · Cardiovascular Endurance", phaseNum: 1,
+    quote: '"The successful warrior is the average man, with laser-like focus." — Bruce Lee',
+    rm: "60%", sets: "4", reps: "15", rest: "90s",
+    powerExercises: [
+      {name:"Bag Work — Jab-Cross",pct:"—",sets:"3",reps:"3 min",rest:"60s"},
+      {name:"Chain 1: Punch combos",pct:"—",sets:"3",reps:"10",rest:"45s"},
+      {name:"Goblet Squat",pct:"60%",sets:"4",reps:"15",rest:"90s"},
+      {name:"Push-up",pct:"BW",sets:"4",reps:"20",rest:"60s"},
+      {name:"Trap-Bar Deadlift",pct:"60%",sets:"3",reps:"15",rest:"90s"},
+      {name:"Inverted Row",pct:"BW",sets:"3",reps:"15",rest:"60s"},
+      {name:"Sprint 60m",pct:"—",sets:"3",reps:"1",rest:"2 min"},
+      {name:"Plank",pct:"—",sets:"3",reps:"45s",rest:"45s"},
+      {name:"Dead Bug",pct:"—",sets:"3",reps:"20",rest:"45s"},
+    ],
+    flowExercises: [
+      {name:"Shadow Boxing — Flow",pct:"—",sets:"3",reps:"3 min",rest:"60s"},
+      {name:"Kick Flow Drill",pct:"—",sets:"3",reps:"10/side",rest:"45s"},
+      {name:"Hip 90/90 Mobility",pct:"—",sets:"3",reps:"20",rest:"45s"},
+      {name:"Cossack Squat (BW)",pct:"BW",sets:"3",reps:"10/side",rest:"60s"},
+      {name:"Single-Leg RDL",pct:"BW",sets:"3",reps:"12/side",rest:"60s"},
+      {name:"Hollow Hold",pct:"—",sets:"3",reps:"30s",rest:"45s"},
+      {name:"Side Plank",pct:"—",sets:"3",reps:"30s/side",rest:"45s"},
+      {name:"Copenhagen Plank",pct:"—",sets:"3",reps:"20s/side",rest:"45s"},
+    ],
+    nutrition: {pre:"Jowar roti ×2 + ghee + banana + almonds",lunch:"Rice + moong dal + fish curry + methi bhaji",preGym:"Sprouted moong + coconut water + walnuts",postGym:"Bajra roti ×2 + prawn sukka + sol kadhi",sleep:"Crab masala + turmeric coconut milk"},
+    chain:"Chain 1 — Punch: Jab → Cross → Hook → Slip",
+  },
+  {
+    num: 2, phase: "Phase 1 · Cardiovascular Endurance", phaseNum: 1,
+    quote: '"Adapt what is useful, reject what is useless." — Bruce Lee',
+    rm: "60%", sets: "4", reps: "15", rest: "90s",
+    powerExercises: [
+      {name:"Bag Work — Jab-Cross-Hook",pct:"—",sets:"3",reps:"3 min",rest:"60s"},
+      {name:"Chain 1: Punch — add Hook",pct:"—",sets:"3",reps:"10",rest:"45s"},
+      {name:"Goblet Squat",pct:"62%",sets:"4",reps:"15",rest:"90s"},
+      {name:"Push-up",pct:"BW",sets:"4",reps:"22",rest:"60s"},
+      {name:"Trap-Bar Deadlift",pct:"62%",sets:"3",reps:"15",rest:"90s"},
+      {name:"Inverted Row",pct:"BW",sets:"3",reps:"15",rest:"60s"},
+      {name:"Sprint 60m",pct:"—",sets:"3",reps:"1",rest:"2 min"},
+      {name:"Plank",pct:"—",sets:"3",reps:"50s",rest:"45s"},
+      {name:"Dead Bug",pct:"—",sets:"3",reps:"22",rest:"45s"},
+    ],
+    flowExercises: [
+      {name:"Shadow — Chain 1 Flow",pct:"—",sets:"3",reps:"3 min",rest:"60s"},
+      {name:"Kick Flow Drill",pct:"—",sets:"3",reps:"12/side",rest:"45s"},
+      {name:"Hip 90/90 + Shoulder CARs",pct:"—",sets:"3",reps:"20",rest:"45s"},
+      {name:"Cossack Squat",pct:"BW",sets:"3",reps:"12/side",rest:"60s"},
+      {name:"Single-Leg RDL",pct:"BW",sets:"3",reps:"12/side",rest:"60s"},
+      {name:"Hollow Hold",pct:"—",sets:"3",reps:"35s",rest:"45s"},
+      {name:"Side Plank",pct:"—",sets:"3",reps:"35s/side",rest:"45s"},
+      {name:"Copenhagen Plank",pct:"—",sets:"3",reps:"25s/side",rest:"45s"},
+    ],
+    nutrition: {pre:"Jowar roti ×2 + ghee + banana + almonds",lunch:"Rice + moong dal + fish curry + palak bhaji",preGym:"Sprouted chana + coconut water + walnuts",postGym:"Bajra roti ×2 + prawn sukka + sol kadhi",sleep:"Fish tikka 100g + turmeric coconut milk"},
+    chain:"Chain 1 — Punch: Jab → Cross → Hook → Slip (add Slip this week)",
+  },
+  {
+    num: 3, phase: "Phase 1 · Cardiovascular Endurance", phaseNum: 1,
+    quote: '"If you always put limits on everything you do, it will spread into your work and life." — Bruce Lee',
+    rm: "65%", sets: "4", reps: "14", rest: "90s",
+    powerExercises: [
+      {name:"Bag Work — Full Chain 1",pct:"—",sets:"3",reps:"3 min",rest:"60s"},
+      {name:"Chain 1: Full sequence × 10",pct:"—",sets:"4",reps:"10",rest:"45s"},
+      {name:"Goblet Squat",pct:"65%",sets:"4",reps:"14",rest:"90s"},
+      {name:"Push-up",pct:"BW",sets:"4",reps:"25",rest:"60s"},
+      {name:"Trap-Bar Deadlift",pct:"65%",sets:"3",reps:"14",rest:"90s"},
+      {name:"Inverted Row",pct:"BW",sets:"3",reps:"18",rest:"60s"},
+      {name:"Sprint 60m",pct:"—",sets:"3",reps:"1",rest:"2 min"},
+      {name:"Plank",pct:"—",sets:"3",reps:"60s",rest:"45s"},
+      {name:"Bicycle Crunch",pct:"—",sets:"3",reps:"25",rest:"45s"},
+    ],
+    flowExercises: [
+      {name:"Shadow — Chain 1 mastery",pct:"—",sets:"4",reps:"3 min",rest:"60s"},
+      {name:"Kick Flow Drill",pct:"—",sets:"3",reps:"12/side",rest:"45s"},
+      {name:"Hip Mobility Circuit",pct:"—",sets:"3",reps:"10/move",rest:"45s"},
+      {name:"Cossack Squat",pct:"BW",sets:"3",reps:"12/side",rest:"60s"},
+      {name:"Single-Leg RDL",pct:"BW",sets:"3",reps:"14/side",rest:"60s"},
+      {name:"Hollow Hold",pct:"—",sets:"3",reps:"40s",rest:"45s"},
+      {name:"Side Plank + Hip Lift",pct:"—",sets:"3",reps:"12/side",rest:"45s"},
+      {name:"Dragon Flag Negative",pct:"BW",sets:"2",reps:"5",rest:"60s"},
+    ],
+    nutrition: {pre:"Bajra roti ×2 + ghee + dates ×3 + almonds",lunch:"Rice + masoor dal + prawns masala + bhaji",preGym:"Sprouted moong + coconut water + walnuts",postGym:"Jowar roti ×2 + fish curry + sol kadhi",sleep:"Crab sukka 100g + turmeric coconut milk"},
+    chain:"Chain 1 — Punch: CLEAN × 10 reps. Begin intro to Chain 2 kicks.",
+  },
+  {
+    num: 4, phase: "Phase 2 · Hypertrophy", phaseNum: 2,
+    quote: '"Do not pray for an easy life, pray for the strength to endure a difficult one." — Bruce Lee',
+    rm: "70%", sets: "4", reps: "12", rest: "90s",
+    powerExercises: [
+      {name:"Bag Work — Combinations",pct:"—",sets:"3",reps:"3 min",rest:"60s"},
+      {name:"Chain 1+2: Punch+Kick",pct:"—",sets:"4",reps:"8 combos",rest:"45s"},
+      {name:"Back Squat",pct:"70%",sets:"4",reps:"12",rest:"90s"},
+      {name:"Bench Press",pct:"70%",sets:"4",reps:"12",rest:"90s"},
+      {name:"Romanian Deadlift",pct:"70%",sets:"4",reps:"12",rest:"90s"},
+      {name:"Weighted Pull-up",pct:"65%",sets:"4",reps:"8",rest:"90s"},
+      {name:"Sprint 80m",pct:"—",sets:"3",reps:"1",rest:"2.5 min"},
+      {name:"Hanging Leg Raise",pct:"BW",sets:"3",reps:"20",rest:"60s"},
+      {name:"Dragon Flag Negative",pct:"BW",sets:"3",reps:"6",rest:"60s"},
+    ],
+    flowExercises: [
+      {name:"Pad Work — Speed + Accuracy",pct:"—",sets:"4",reps:"3 min",rest:"60s"},
+      {name:"Chain 2: Kick flow",pct:"—",sets:"3",reps:"12/side",rest:"45s"},
+      {name:"Bulgarian Split Squat",pct:"65%",sets:"3",reps:"12/side",rest:"75s"},
+      {name:"DB Row",pct:"68%",sets:"3",reps:"15/side",rest:"60s"},
+      {name:"Push-up Variations",pct:"BW",sets:"3",reps:"20",rest:"60s"},
+      {name:"Pallof Press",pct:"Light",sets:"3",reps:"20/side",rest:"45s"},
+      {name:"L-Sit Hold",pct:"BW",sets:"3",reps:"15s",rest:"45s"},
+      {name:"V-up",pct:"BW",sets:"3",reps:"20",rest:"45s"},
+    ],
+    nutrition: {pre:"Jowar roti ×2 + ghee + banana + almonds ×12",lunch:"Rice 160g + moong dal + surmai curry + palak",preGym:"Sprouted moong + dates ×3 + coconut water",postGym:"Bajra roti ×2 + prawn sukka 160g + sol kadhi",sleep:"Fish 120g + cucumber + turmeric milk"},
+    chain:"Chain 2 — Kick: Lead kick → Rear kick. Begin linking to Chain 1.",
+  },
+  {
+    num: 5, phase: "Phase 2 · Hypertrophy", phaseNum: 2,
+    quote: '"Real living is living for others." — Bruce Lee',
+    rm: "72%", sets: "4", reps: "10", rest: "90s",
+    powerExercises: [
+      {name:"Bag Work — Chain 1+2",pct:"—",sets:"3",reps:"3 min",rest:"60s"},
+      {name:"Punch+Kick full sequence",pct:"—",sets:"4",reps:"8",rest:"60s"},
+      {name:"Back Squat",pct:"72%",sets:"4",reps:"10",rest:"90s"},
+      {name:"Bench Press",pct:"72%",sets:"4",reps:"10",rest:"90s"},
+      {name:"Romanian Deadlift",pct:"72%",sets:"4",reps:"10",rest:"90s"},
+      {name:"Weighted Pull-up",pct:"68%",sets:"4",reps:"8",rest:"90s"},
+      {name:"Sprint 80m",pct:"—",sets:"3",reps:"1",rest:"2.5 min"},
+      {name:"Cable Woodchop",pct:"Light",sets:"3",reps:"20/side",rest:"60s"},
+      {name:"Dragon Flag",pct:"BW",sets:"3",reps:"6",rest:"60s"},
+    ],
+    flowExercises: [
+      {name:"Pad Work — Power + Speed",pct:"—",sets:"4",reps:"3 min",rest:"60s"},
+      {name:"Chain 2: Kick + Switch kick",pct:"—",sets:"3",reps:"12/side",rest:"45s"},
+      {name:"Bulgarian Split Squat",pct:"67%",sets:"3",reps:"12/side",rest:"75s"},
+      {name:"DB Row",pct:"70%",sets:"3",reps:"14/side",rest:"60s"},
+      {name:"Pike Push-up",pct:"BW",sets:"3",reps:"15",rest:"60s"},
+      {name:"Pallof Press",pct:"Mod",sets:"3",reps:"18/side",rest:"45s"},
+      {name:"L-Sit Hold",pct:"BW",sets:"3",reps:"20s",rest:"45s"},
+      {name:"Toes-to-Bar",pct:"BW",sets:"3",reps:"12",rest:"60s"},
+    ],
+    nutrition: {pre:"Bajra roti ×2 + ghee + banana + walnuts ×5",lunch:"Rice 160g + masoor dal + rawas curry + methi",preGym:"Sprouted chana + dates ×3 + coconut water",postGym:"Jowar roti ×2 + kolambi 160g + sol kadhi",sleep:"Crab 100g + salad + turmeric coconut milk"},
+    chain:"Chain 2 — Kick: Full 3-kick chain. Eyes closed rehearsal.",
+  },
+  {
+    num: 6, phase: "Phase 2 · Hypertrophy", phaseNum: 2,
+    quote: '"Knowing is not enough, we must apply. Willing is not enough, we must do." — Bruce Lee',
+    rm: "75%", sets: "4", reps: "10", rest: "90s",
+    powerExercises: [
+      {name:"Bag Work — Full power combos",pct:"—",sets:"3",reps:"3 min",rest:"60s"},
+      {name:"Chain 1+2 linked × 6",pct:"—",sets:"4",reps:"6 chains",rest:"60s"},
+      {name:"Back Squat",pct:"75%",sets:"4",reps:"10",rest:"90s"},
+      {name:"Bench Press",pct:"75%",sets:"4",reps:"10",rest:"90s"},
+      {name:"Deadlift",pct:"75%",sets:"4",reps:"8",rest:"2 min"},
+      {name:"Weighted Pull-up",pct:"72%",sets:"4",reps:"6",rest:"2 min"},
+      {name:"Sprint 80m",pct:"—",sets:"3",reps:"1",rest:"2.5 min"},
+      {name:"Hanging Leg Raise",pct:"BW",sets:"3",reps:"22",rest:"60s"},
+      {name:"Ab Wheel Rollout",pct:"BW",sets:"3",reps:"12",rest:"60s"},
+    ],
+    flowExercises: [
+      {name:"Pad Work — Chain 1+2 flow",pct:"—",sets:"4",reps:"3 min",rest:"60s"},
+      {name:"Chain 2 mastery test",pct:"—",sets:"3",reps:"10 clean",rest:"60s"},
+      {name:"Front Squat",pct:"65%",sets:"3",reps:"8",rest:"2 min"},
+      {name:"DB Row",pct:"72%",sets:"3",reps:"12/side",rest:"60s"},
+      {name:"Close-Grip Push-up",pct:"BW",sets:"3",reps:"20",rest:"60s"},
+      {name:"Rotational Med Ball 4kg",pct:"—",sets:"3",reps:"12/side",rest:"60s"},
+      {name:"L-Sit to V-up",pct:"BW",sets:"3",reps:"10",rest:"60s"},
+      {name:"Copenhagen Plank",pct:"BW",sets:"3",reps:"30s/side",rest:"45s"},
+    ],
+    nutrition: {pre:"Jowar roti ×3 + ghee + banana + almonds ×14",lunch:"Rice 170g + dal + surmai 180g + bhaji + ghee",preGym:"Sprouted moong + dates ×4 + coconut water",postGym:"Bajra roti ×2 + prawn curry 170g + sol kadhi",sleep:"Fish tikka 120g + turmeric coconut milk"},
+    chain:"Chain 2 — Kick: CLEAN × 10. Begin Chain 3 Pak Sao intro.",
+  },
+  {
+    num: 7, phase: "Phase 3 · Strength", phaseNum: 3,
+    quote: '"To hell with circumstances; I create opportunities." — Bruce Lee',
+    rm: "80%", sets: "4", reps: "6", rest: "2.5 min",
+    powerExercises: [
+      {name:"Bag Work — Power rounds",pct:"—",sets:"3",reps:"3 min",rest:"75s"},
+      {name:"Full Chain 1+2+3",pct:"—",sets:"4",reps:"6 chains",rest:"60s"},
+      {name:"Back Squat",pct:"80%",sets:"4",reps:"6",rest:"2.5 min"},
+      {name:"Incline Press",pct:"78%",sets:"4",reps:"6",rest:"2.5 min"},
+      {name:"Deadlift",pct:"80%",sets:"3",reps:"5",rest:"3 min"},
+      {name:"Weighted Pull-up",pct:"80%",sets:"4",reps:"5",rest:"2.5 min"},
+      {name:"Sprint 100m",pct:"—",sets:"3",reps:"1",rest:"3 min"},
+      {name:"Suitcase Carry 40m",pct:"Mod",sets:"3",reps:"1",rest:"2 min"},
+      {name:"Ab Wheel Rollout",pct:"BW",sets:"3",reps:"15",rest:"60s"},
+    ],
+    flowExercises: [
+      {name:"Shadow — Full chain flow",pct:"—",sets:"4",reps:"3 min",rest:"75s"},
+      {name:"Chain 3 Trap drills",pct:"—",sets:"4",reps:"10/side",rest:"60s"},
+      {name:"Front Squat",pct:"72%",sets:"3",reps:"6",rest:"2 min"},
+      {name:"Single-Arm DB Press",pct:"72%",sets:"3",reps:"8/side",rest:"90s"},
+      {name:"GHD Hip Extension",pct:"BW",sets:"3",reps:"15",rest:"60s"},
+      {name:"Rotational Med Ball 4kg",pct:"—",sets:"3",reps:"12/side",rest:"60s"},
+      {name:"Toes-to-Bar",pct:"BW",sets:"3",reps:"14",rest:"60s"},
+      {name:"Copenhagen Plank",pct:"BW",sets:"3",reps:"30s/side",rest:"45s"},
+    ],
+    nutrition: {pre:"Bajra roti ×2 + ghee + banana + almonds ×15",lunch:"Rice 170g + dal + surmai 180g + methi + ghee",preGym:"Sprouted moong + dates ×4 + coconut water",postGym:"Jowar roti ×3 + prawn sukka 180g + sol kadhi",sleep:"Crab 120g + cucumber + ashwagandha milk"},
+    chain:"Chain 3 — Trap: Pak Sao → Lap Sao. Slow precision only.",
+  },
+  {
+    num: 8, phase: "Phase 3 · Strength", phaseNum: 3,
+    quote: '"Always be yourself, express yourself, have faith in yourself." — Bruce Lee',
+    rm: "82%", sets: "4", reps: "5", rest: "2.5 min",
+    powerExercises: [
+      {name:"Bag Work — Chain 1+2+3",pct:"—",sets:"3",reps:"3 min",rest:"75s"},
+      {name:"Full chains — power intent",pct:"—",sets:"4",reps:"6",rest:"60s"},
+      {name:"Back Squat",pct:"82%",sets:"4",reps:"5",rest:"2.5 min"},
+      {name:"Bench Press",pct:"82%",sets:"4",reps:"5",rest:"2.5 min"},
+      {name:"Deadlift",pct:"83%",sets:"3",reps:"5",rest:"3 min"},
+      {name:"Weighted Pull-up",pct:"82%",sets:"4",reps:"5",rest:"2.5 min"},
+      {name:"Sprint 100m",pct:"—",sets:"3",reps:"1",rest:"3 min"},
+      {name:"Suitcase Carry 40m",pct:"Heavy",sets:"3",reps:"1",rest:"2 min"},
+      {name:"Dragon Flag",pct:"BW",sets:"3",reps:"8",rest:"60s"},
+    ],
+    flowExercises: [
+      {name:"Shadow — Chain 3 focus",pct:"—",sets:"4",reps:"3 min",rest:"75s"},
+      {name:"Trap + Counter entry",pct:"—",sets:"4",reps:"10/side",rest:"60s"},
+      {name:"Front Squat",pct:"74%",sets:"3",reps:"6",rest:"2 min"},
+      {name:"Single-Arm DB Press",pct:"74%",sets:"3",reps:"8/side",rest:"90s"},
+      {name:"GHD Hip Extension",pct:"BW",sets:"3",reps:"18",rest:"60s"},
+      {name:"Rotational Med Ball 4kg",pct:"—",sets:"4",reps:"12/side",rest:"60s"},
+      {name:"L-Sit Hold",pct:"BW",sets:"3",reps:"25s",rest:"45s"},
+      {name:"Nordic Curl Negative",pct:"BW",sets:"3",reps:"5",rest:"90s"},
+    ],
+    nutrition: {pre:"Jowar roti ×3 + ghee + banana + almonds ×15",lunch:"Rice 180g + dal + rawas 180g + bhaji + ghee",preGym:"Sprouted chana + dates ×4 + coconut water",postGym:"Bajra roti ×3 + kolambi 180g + sol kadhi",sleep:"Fish 120g + cucumber + ashwagandha milk"},
+    chain:"Chain 3 — Trap: Full Pak Sao → Lap Sao → Strike → Entry.",
+  },
+  {
+    num: 9, phase: "Phase 3 · Strength", phaseNum: 3,
+    quote: '"A goal is not always meant to be reached; it often serves simply as something to aim at." — Bruce Lee',
+    rm: "85%", sets: "4", reps: "5", rest: "3 min",
+    powerExercises: [
+      {name:"Bag Work — Max power",pct:"—",sets:"3",reps:"3 min",rest:"75s"},
+      {name:"3-chain sequence × 5",pct:"—",sets:"5",reps:"5 chains",rest:"90s"},
+      {name:"Back Squat",pct:"85%",sets:"4",reps:"5",rest:"3 min"},
+      {name:"Incline Press",pct:"83%",sets:"4",reps:"5",rest:"3 min"},
+      {name:"Deadlift",pct:"85%",sets:"3",reps:"4",rest:"3.5 min"},
+      {name:"Weighted Pull-up",pct:"85%",sets:"4",reps:"4",rest:"3 min"},
+      {name:"Sprint 100m",pct:"—",sets:"4",reps:"1",rest:"3 min"},
+      {name:"Ab Wheel Rollout",pct:"BW",sets:"3",reps:"18",rest:"60s"},
+      {name:"Dragon Flag",pct:"BW",sets:"3",reps:"8",rest:"60s"},
+    ],
+    flowExercises: [
+      {name:"Shadow — 3 chains in flow",pct:"—",sets:"4",reps:"3 min",rest:"90s"},
+      {name:"Trap entry at speed",pct:"—",sets:"4",reps:"8/side",rest:"60s"},
+      {name:"Front Squat",pct:"76%",sets:"3",reps:"5",rest:"2 min"},
+      {name:"Single-Arm DB Press",pct:"76%",sets:"3",reps:"6/side",rest:"90s"},
+      {name:"GHD Hip Extension",pct:"BW",sets:"3",reps:"20",rest:"60s"},
+      {name:"Rotational Med Ball 5kg",pct:"—",sets:"4",reps:"10/side",rest:"60s"},
+      {name:"Toes-to-Bar",pct:"BW",sets:"3",reps:"15",rest:"60s"},
+      {name:"Nordic Curl",pct:"BW",sets:"3",reps:"5",rest:"90s"},
+    ],
+    nutrition: {pre:"Bajra roti ×3 + ghee + banana + almonds ×15",lunch:"Rice 180g + dal + surmai 200g + methi + ghee",preGym:"Sprouted moong + dates ×5 + coconut water",postGym:"Jowar roti ×3 + prawn 200g + sol kadhi",sleep:"Crab 120g + cucumber + ashwagandha milk"},
+    chain:"Chain 3 — Trap: CLEAN × 6. Begin linking all 3 chains.",
+  },
+  {
+    num: 10, phase: "Phase 4 · Power", phaseNum: 4,
+    quote: '"The key to immortality is first living a life worth remembering." — Bruce Lee',
+    rm: "88%", sets: "3–4", reps: "3–5", rest: "3 min",
+    powerExercises: [
+      {name:"Bag Work — Max intent",pct:"—",sets:"3",reps:"3 min",rest:"90s"},
+      {name:"Full 3-chain at speed × 5",pct:"—",sets:"5",reps:"5 chains",rest:"90s"},
+      {name:"Jump Squat",pct:"30%",sets:"4",reps:"5",rest:"2 min"},
+      {name:"Back Squat",pct:"88%",sets:"3",reps:"3",rest:"3 min"},
+      {name:"Trap-Bar Deadlift",pct:"90%",sets:"3",reps:"3",rest:"3 min"},
+      {name:"Clap Push-up",pct:"BW",sets:"4",reps:"8",rest:"2 min"},
+      {name:"Weighted Pull-up",pct:"87%",sets:"3",reps:"3",rest:"3 min"},
+      {name:"Sprint 60m (MAX)",pct:"—",sets:"4",reps:"1",rest:"3 min"},
+      {name:"Dragon Flag",pct:"BW",sets:"3",reps:"8",rest:"60s"},
+    ],
+    flowExercises: [
+      {name:"Shadow — Full expression",pct:"—",sets:"4",reps:"3 min",rest:"90s"},
+      {name:"Chain critique + refine",pct:"—",sets:"3",reps:"8 chains",rest:"60s"},
+      {name:"Single-Leg Box Jump",pct:"BW",sets:"3",reps:"6/side",rest:"2 min"},
+      {name:"Rotational Med Ball 5kg",pct:"—",sets:"4",reps:"8/side",rest:"90s"},
+      {name:"Landmine Press",pct:"75%",sets:"3",reps:"8/side",rest:"90s"},
+      {name:"Nordic Curl",pct:"BW",sets:"3",reps:"6",rest:"90s"},
+      {name:"L-Sit to V-up",pct:"BW",sets:"3",reps:"10",rest:"60s"},
+      {name:"Toes-to-Bar",pct:"BW",sets:"3",reps:"15",rest:"60s"},
+    ],
+    nutrition: {pre:"Bajra roti ×3 + ghee + banana + almonds + dates ×4",lunch:"Rice 180g + dal + surmai 200g + bhaji + ghee",preGym:"Sprouted moong + dates ×5 + coconut water",postGym:"Jowar roti ×3 + prawn 200g + sol kadhi",sleep:"Crab 130g + cucumber + ashwagandha + triphala"},
+    chain:"Full Sequence: Begin linking 1+2+3 in 3-min run. Film it.",
+  },
+  {
+    num: 11, phase: "Phase 4 · Power", phaseNum: 4,
+    quote: '"The medicine for my suffering I had within me from the very beginning." — Bruce Lee',
+    rm: "90–92%", sets: "3", reps: "3", rest: "3.5 min",
+    powerExercises: [
+      {name:"Bag Work — Performance intent",pct:"—",sets:"3",reps:"3 min",rest:"90s"},
+      {name:"Full 3-chain at fight speed",pct:"—",sets:"5",reps:"5",rest:"2 min"},
+      {name:"Jump Squat",pct:"30%",sets:"4",reps:"5",rest:"2 min"},
+      {name:"Back Squat",pct:"90%",sets:"3",reps:"3",rest:"3.5 min"},
+      {name:"Deadlift",pct:"92%",sets:"3",reps:"2",rest:"4 min"},
+      {name:"Clap Push-up",pct:"BW",sets:"4",reps:"10",rest:"2 min"},
+      {name:"Weighted Pull-up",pct:"90%",sets:"3",reps:"3",rest:"3.5 min"},
+      {name:"Sprint 60m (MAX)",pct:"—",sets:"4",reps:"1",rest:"3 min"},
+      {name:"Dragon Flag",pct:"BW",sets:"3",reps:"10",rest:"60s"},
+    ],
+    flowExercises: [
+      {name:"Shadow — Flawless 3 chains",pct:"—",sets:"5",reps:"3 min",rest:"90s"},
+      {name:"Chain quality audit",pct:"—",sets:"3",reps:"10 chains",rest:"60s"},
+      {name:"Single-Leg Box Jump",pct:"BW",sets:"3",reps:"8/side",rest:"2 min"},
+      {name:"Rotational Med Ball 5kg",pct:"—",sets:"4",reps:"10/side",rest:"90s"},
+      {name:"Landmine Press",pct:"78%",sets:"3",reps:"6/side",rest:"90s"},
+      {name:"Nordic Curl",pct:"BW",sets:"3",reps:"8",rest:"90s"},
+      {name:"L-Sit to V-up",pct:"BW",sets:"3",reps:"12",rest:"60s"},
+      {name:"Ab Wheel Rollout",pct:"BW",sets:"3",reps:"20",rest:"60s"},
+    ],
+    nutrition: {pre:"Jowar roti ×3 + ghee + banana + almonds + dates ×5",lunch:"Rice 190g + dal + surmai 200g + methi + ghee",preGym:"Sprouted chana + dates ×5 + coconut water",postGym:"Bajra roti ×3 + prawn 200g + sol kadhi",sleep:"Crab 130g + cucumber + ashwagandha + triphala"},
+    chain:"Full Sequence: 3 min — timed and filmed. Refine transitions.",
+  },
+  {
+    num: 12, phase: "Phase 5 · Deload + Express", phaseNum: 5,
+    quote: '"Empty your mind, be formless, shapeless — like water." — Bruce Lee',
+    rm: "55–60%", sets: "3", reps: "8", rest: "90s",
+    powerExercises: [
+      {name:"Bag Work — Technical precision",pct:"—",sets:"3",reps:"3 min",rest:"90s"},
+      {name:"Perfect chain rehearsal",pct:"—",sets:"3",reps:"5 chains",rest:"2 min"},
+      {name:"Back Squat",pct:"57%",sets:"3",reps:"8",rest:"90s"},
+      {name:"Bench Press",pct:"55%",sets:"3",reps:"8",rest:"90s"},
+      {name:"Deadlift",pct:"57%",sets:"3",reps:"8",rest:"90s"},
+      {name:"Pull-up",pct:"BW",sets:"3",reps:"10",rest:"90s"},
+      {name:"Sprint 60m (70% effort)",pct:"—",sets:"2",reps:"1",rest:"3 min"},
+      {name:"Core Circuit × 3 moves",pct:"Light",sets:"3",reps:"15",rest:"45s"},
+    ],
+    flowExercises: [
+      {name:"Shadow — Pure expression",pct:"—",sets:"4",reps:"3 min",rest:"2 min"},
+      {name:"Sequence — Master run",pct:"—",sets:"3",reps:"3 min",rest:"3 min"},
+      {name:"Mobility Circuit",pct:"—",sets:"3",reps:"10/move",rest:"30s"},
+      {name:"Single-Leg RDL",pct:"BW",sets:"2",reps:"10/side",rest:"60s"},
+      {name:"Cossack Squat",pct:"BW",sets:"2",reps:"10/side",rest:"60s"},
+      {name:"L-Sit Hold",pct:"BW",sets:"3",reps:"20s",rest:"45s"},
+      {name:"Hollow Hold",pct:"—",sets:"3",reps:"45s",rest:"45s"},
+    ],
+    nutrition: {pre:"Jowar roti ×2 + ghee + banana + almonds ×10",lunch:"Rice 150g + dal + fish 150g + bhaji + ghee",preGym:"Sprouted moong + coconut water",postGym:"Bajra roti ×2 + prawn 150g + sol kadhi",sleep:"Fish 100g + cucumber + ashwagandha + triphala"},
+    chain:"Full Sequence: 3 min FLAWLESS from memory. Day 90 benchmark.",
+  },
+];
+
+// ── CURRENT WEEK DETECTION ────────────────────────────────────────────────────
+const START_DATE = new Date(2025, 3, 6); // April 6 2025
+
+function getCurrentWeekNum() {
+  const now  = new Date();
+  const diff = Math.floor((now - START_DATE) / 86400000);
+  if (diff < 0) return null;
+  const weekNum = Math.ceil((diff + 1) / 7);
+  return weekNum >= 1 && weekNum <= 12 ? weekNum : null;
+}
+
+// ── PAGE BUILDER ──────────────────────────────────────────────────────────────
+function buildWeekPage(w) {
+  const exTable = (exercises) => `
+    <table class="full-table">
+      <thead><tr>
+        <th style="width:38%">Exercise</th>
+        <th>%1RM</th><th>Sets</th><th>Reps</th><th>Rest</th>
+        <th class="log-entry">Log / Notes</th>
+      </tr></thead>
+      <tbody>
+        ${exercises.map(e => `<tr>
+          <td>${e.name}</td>
+          <td class="num">${e.pct}</td>
+          <td class="num">${e.sets}</td>
+          <td class="num">${e.reps}</td>
+          <td class="num">${e.rest}</td>
+          <td class="log-entry"><textarea class="field-log" rows="2" placeholder="log…"></textarea></td>
+        </tr>`).join('')}
+      </tbody>
+    </table>`;
+
+  const noteLines = (n) => Array(n).fill('<div class="note-line"><input type="text" /></div>').join('');
+
+  return `
+<div class="page" id="page-${w.num}">
+  <div class="page-header">
+    <div class="header-left">
+      <div class="protocol">Bruce Lee Protocol · 90-Day Path</div>
+      <div class="week-title">Week ${w.num}</div>
+      <div class="phase-label">${w.phase}</div>
+    </div>
+    <div class="header-right">
+      Name <input class="field-inline" type="text" placeholder="Your name" style="min-width:32mm"><br>
+      Week Dates <input class="field-inline" type="text" placeholder="DD–DD MMM" style="min-width:28mm"><br>
+      Days ${(w.num-1)*7+1}–${w.num*7} of 90
+    </div>
+  </div>
+
+  <div class="quote">${w.quote}</div>
+
+  <div class="section-header">
+    <span class="label">Power + Strike</span>
+    <span class="time">Mon · Wed · Fri</span>
+  </div>
+  <div class="full-table-wrap">${exTable(w.powerExercises)}</div>
+
+  <div class="section-header">
+    <span class="label">Fluidity + Flow</span>
+    <span class="time">Tue · Thu · Sat</span>
+  </div>
+  <div class="full-table-wrap">${exTable(w.flowExercises)}</div>
+
+  <div class="section-header"><span class="label">Striking Chain Focus</span></div>
+  <div class="chain-box">
+    ${w.chain}
+    <div class="chain-score-row">
+      Sequence Score:
+      <input type="text" placeholder="__" style="width:10mm" /> /21
+      <span class="sep">|</span>
+      Best run:
+      <input type="text" placeholder="00:00" style="width:14mm" />
+      <span class="sep">|</span>
+      Notes:
+      <input type="text" placeholder="…" style="flex:1;min-width:30mm" />
+    </div>
+  </div>
+
+  <div class="section-header"><span class="label">Nutrition — This Week</span></div>
+  <div class="nutrition-strip">
+    <div class="nut-cell"><span class="nut-label">Pre-Martial 0630</span><span class="nut-food">${w.nutrition.pre}</span></div>
+    <div class="nut-cell"><span class="nut-label">Lunch 1000</span><span class="nut-food">${w.nutrition.lunch}</span></div>
+    <div class="nut-cell"><span class="nut-label">Pre-Gym 1400</span><span class="nut-food">${w.nutrition.preGym}</span></div>
+    <div class="nut-cell"><span class="nut-label">Post-Gym 1730</span><span class="nut-food">${w.nutrition.postGym}</span></div>
+    <div class="nut-cell"><span class="nut-label">Pre-Sleep 2000</span><span class="nut-food">${w.nutrition.sleep}</span></div>
+  </div>
+
+  <div class="notes-grid">
+    <div class="note-box">
+      <span class="note-label">Best moment this week</span>
+      <div class="note-lines">${noteLines(3)}</div>
+    </div>
+    <div class="note-box">
+      <span class="note-label">What needs fixing</span>
+      <div class="note-lines">${noteLines(3)}</div>
+    </div>
+    <div class="note-box">
+      <span class="note-label">One Bruce Lee lesson learned</span>
+      <div class="note-lines">${noteLines(3)}</div>
+    </div>
+  </div>
+
+  <div class="score-row">
+    <div class="score-boxes">
+      <div class="score-box">
+        <span class="score-label">Fitness</span>
+        <div class="score-field"><input type="text" maxlength="2" placeholder="—" /></div>
+        <span class="score-label">/18</span>
+      </div>
+      <div class="score-box">
+        <span class="score-label">Combat</span>
+        <div class="score-field"><input type="text" maxlength="2" placeholder="—" /></div>
+        <span class="score-label">/18</span>
+      </div>
+      <div class="score-box">
+        <span class="score-label">Performance</span>
+        <div class="score-field"><input type="text" maxlength="2" placeholder="—" /></div>
+        <span class="score-label">/18</span>
+      </div>
+      <div class="score-box">
+        <span class="score-label">Attitude</span>
+        <div class="score-field"><input type="text" maxlength="2" placeholder="—" /></div>
+        <span class="score-label">/18</span>
+      </div>
+    </div>
+    <div class="week-score-total">
+      <span>Week Total </span><input class="week-total-input" type="text" maxlength="3" placeholder="___" /><span> / 72</span>
+    </div>
+  </div>
+
+  <div class="page-footer">
+    <span>90-Day Path · Bruce Lee Protocol</span>
+    <span>Week ${w.num} · ${w.phase}</span>
+    <span>Page ${w.num + 1} of 13</span>
+  </div>
+</div>`;
+}
+
+// Build all week pages
+const container = document.getElementById('weekPages');
+WEEKS.forEach(w => container.insertAdjacentHTML('beforeend', buildWeekPage(w)));
+
+// ── NAV BAR ───────────────────────────────────────────────────────────────────
+const currentWeekNum = getCurrentWeekNum();
+
+const nav = document.getElementById('weekNav');
+nav.innerHTML =
+  '<button class="active" onclick="showPage(0,this)">Overview</button>' +
+  WEEKS.map(w => {
+    const isCurrent = w.num === currentWeekNum;
+    return `<button class="${isCurrent ? 'current-week' : ''}" onclick="showPage(${w.num},this)">W${w.num}${isCurrent ? ' ◀' : ''}</button>`;
+  }).join('');
+
+function showPage(num, btn) {
+  const activePage = document.getElementById('page-' + num);
+  if (!activePage) { console.warn('[showPage] No page found for id: page-' + num); return; }
+  document.querySelectorAll('.page').forEach(p => {
+    p.classList.remove('active');
+    p.style.display = 'none';
+  });
+  activePage.classList.add('active');
+  activePage.style.display = 'block';
+  document.querySelectorAll('.week-select button').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  btn.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+}
+
+function goToThisWeek() {
+  if (!currentWeekNum) {
+    // Outside the 90-day window — just show overview
+    const overviewBtn = nav.querySelectorAll('button')[0];
+    if (overviewBtn) showPage(0, overviewBtn);
+    return;
+  }
+  // nav buttons: index 0 = Overview, index 1 = W1, … index N = WN
+  const btn = nav.querySelectorAll('button')[currentWeekNum];
+  if (btn) showPage(currentWeekNum, btn);
+}
+
+// ── LAYOUT: fix offset of nav bar and pages wrapper ──────────────────────────
+function fixLayout() {
+  const cb = document.getElementById('controlsBar');
+  const wn = document.getElementById('weekNav');
+  const pw = document.getElementById('pagesWrapper');
+  const cbH = cb ? cb.offsetHeight : 52;
+  if (wn) { wn.style.top = cbH + 'px'; }
+  const wnH = wn ? wn.offsetHeight : 42;
+  if (pw) { pw.style.marginTop = (cbH + wnH + 8) + 'px'; }
+  const ob = document.getElementById('offline-badge');
+  if (ob) { ob.style.top = (cbH + wnH + 8) + 'px'; }
+}
+window.addEventListener('load', fixLayout);
+window.addEventListener('resize', fixLayout);
+// Run immediately so bars are positioned before first paint;
+// the load event will re-run once fonts are measured.
+fixLayout();
+
+// Auto-navigate to current week if ?action=thisweek
+if (location.search.includes('action=thisweek') && currentWeekNum) {
+  const btn = nav.querySelectorAll('button')[currentWeekNum];
+  if (btn) showPage(currentWeekNum, btn);
+}
+
+// ── PDF EXPORT ────────────────────────────────────────────────────────────────
+const PDF_OPT = {
+  margin: 0,
+  image: { type: 'jpeg', quality: 0.98 },
+  html2canvas: { scale: 2, useCORS: true, letterRendering: true },
+  jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+  pagebreak: { mode: ['avoid-all', 'css'] }
+};
+
+function setBtn(id, label, disabled) {
+  const b = document.getElementById(id);
+  b.textContent = label;
+  b.disabled = disabled;
+}
+
+function printAll() {
+  if (typeof html2pdf === 'undefined') {
+    alert('PDF library is still loading. Please wait a moment and try again.');
+    return;
+  }
+  setBtn('btnAll', 'Generating…', true);
+
+  // Clone pages without touching live DOM visibility
+  const pages = document.querySelectorAll('.page');
+  const wrapper = document.createElement('div');
+  pages.forEach(p => {
+    const clone = p.cloneNode(true);
+    clone.style.display = 'block';
+    clone.style.margin = '0';
+    clone.style.boxShadow = 'none';
+    clone.style.borderTop = 'none';
+    clone.style.pageBreakAfter = 'always';
+    wrapper.appendChild(clone);
+  });
+  // Append off-screen so html2canvas can measure
+  wrapper.style.position = 'fixed';
+  wrapper.style.left = '-9999px';
+  wrapper.style.top = '0';
+  document.body.appendChild(wrapper);
+
+  html2pdf().set({ ...PDF_OPT, filename: '90-Day-Path-All-Weeks.pdf' })
+    .from(wrapper).save()
+    .then(() => {
+      document.body.removeChild(wrapper);
+      setBtn('btnAll', '↓ Full PDF', false);
+    })
+    .catch(err => {
+      console.error('[PDF] Export failed:', err);
+      document.body.removeChild(wrapper);
+      setBtn('btnAll', '↓ Full PDF', false);
+      alert('PDF generation failed. Please try again.');
+    });
+}
+
+function printCurrent() {
+  if (typeof html2pdf === 'undefined') {
+    alert('PDF library is still loading. Please wait a moment and try again.');
+    return;
+  }
+  setBtn('btnCurrent', 'Generating…', true);
+  const active = document.querySelector('.page.active');
+  if (!active) { setBtn('btnCurrent', '↓ Page PDF', false); return; }
+
+  const weekNum = active.id.replace('page-', '');
+  const filename = weekNum === '0' ? '90-Day-Path-Overview.pdf' : `90-Day-Path-Week-${weekNum}.pdf`;
+
+  const clone = active.cloneNode(true);
+  clone.style.display = 'block';
+  clone.style.margin = '0';
+  clone.style.boxShadow = 'none';
+  clone.style.borderTop = 'none';
+  const wrapper = document.createElement('div');
+  wrapper.style.position = 'fixed';
+  wrapper.style.left = '-9999px';
+  wrapper.style.top = '0';
+  wrapper.appendChild(clone);
+  document.body.appendChild(wrapper);
+
+  html2pdf().set({ ...PDF_OPT, filename })
+    .from(wrapper).save()
+    .then(() => {
+      document.body.removeChild(wrapper);
+      setBtn('btnCurrent', '↓ Page PDF', false);
+    })
+    .catch(err => {
+      console.error('[PDF] Export failed:', err);
+      document.body.removeChild(wrapper);
+      setBtn('btnCurrent', '↓ Page PDF', false);
+      alert('PDF generation failed. Please try again.');
+    });
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+//  PWA — Service Worker + Install Prompt
+// ════════════════════════════════════════════════════════════════════════════
+
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./sw.js', { scope: './' })
+      .then(reg => {
+        console.log('[PWA] SW registered, scope:', reg.scope);
+        setInterval(() => reg.update(), 30 * 60 * 1000);
+      })
+      .catch(err => console.warn('[PWA] SW failed:', err));
+  });
+}
+
+// Offline badge
+const offlineBadge = document.getElementById('offline-badge');
+function updateOnlineStatus() {
+  offlineBadge.classList.toggle('visible', !navigator.onLine);
+}
+window.addEventListener('online',  updateOnlineStatus);
+window.addEventListener('offline', updateOnlineStatus);
+updateOnlineStatus();
+
+// Install banner
+let deferredPrompt = null;
+const installBanner = document.getElementById('install-banner');
+
+window.addEventListener('beforeinstallprompt', e => {
+  e.preventDefault();
+  deferredPrompt = e;
+  if (!localStorage.getItem('pwa_install_dismissed')) {
+    installBanner.classList.add('visible');
+  }
+});
+
+function triggerInstall() {
+  if (!deferredPrompt) return;
+  deferredPrompt.prompt();
+  deferredPrompt.userChoice.then(choice => {
+    deferredPrompt = null;
+    installBanner.classList.remove('visible');
+  });
+}
+
+function dismissInstall() {
+  installBanner.classList.remove('visible');
+  localStorage.setItem('pwa_install_dismissed', '1');
+}
+
+window.addEventListener('appinstalled', () => {
+  installBanner.classList.remove('visible');
+  deferredPrompt = null;
+});
+</script>
+</body>
+</html>
